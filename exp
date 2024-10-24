@@ -1,0 +1,144 @@
+影像讀取
+cv2.imread(): 來自 OpenCV 的函數，用來讀取影像。
+
+python
+複製程式碼
+import cv2
+image = cv2.imread('road_image.jpg')
+參數:
+'road_image.jpg': 影像檔案路徑。
+用途: 讀取指定的影像並返回一個多維陣列，代表影像的像素值。
+Image.open(): 來自 PIL（Pillow）的函數，用來開啟影像。
+
+python
+複製程式碼
+from PIL import Image
+image = Image.open('road_image.jpg')
+用途: 開啟影像檔案，通常與 PIL 的其他影像操作一起使用。
+2. 影像預處理
+cv2.cvtColor(): 將影像轉換為灰階（或其他色彩空間）。
+
+python
+複製程式碼
+gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+參數:
+image: 原始彩色影像。
+cv2.COLOR_BGR2GRAY: 轉換代碼，將彩色影像轉換為灰階。
+用途: 簡化影像處理，去除顏色資訊，保留亮度資訊。
+cv2.GaussianBlur(): 對影像進行高斯模糊處理。
+
+python
+複製程式碼
+blurred_image = cv2.GaussianBlur(gray_image, (5, 5), 0)
+參數:
+(5, 5): 卷積核大小，決定模糊強度。
+0: 高斯函數的標準差。
+用途: 平滑影像，減少噪音。
+cv2.Canny(): 執行 Canny 邊緣檢測。
+
+python
+複製程式碼
+edges = cv2.Canny(blurred_image, 100, 200)
+參數:
+100, 200: 邊緣檢測的低、高閾值。
+用途: 偵測影像中的邊界，強調輪廓和物件邊緣。
+3. 影像分割
+cv2.threshold(): 影像二值化（閾值處理）。
+
+python
+複製程式碼
+_, thresholded_image = cv2.threshold(gray_image, 127, 255, cv2.THRESH_BINARY)
+參數:
+127: 閾值，低於此值的像素變為0（黑），高於此值的變為255（白）。
+255: 最大值。
+cv2.THRESH_BINARY: 二值化模式。
+用途: 將影像分割為黑白兩部分，強調目標區域。
+cv2.morphologyEx(): 執行形態學運算（膨脹、侵蝕）。
+
+python
+複製程式碼
+kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+morphed_image = cv2.morphologyEx(thresholded_image, cv2.MORPH_CLOSE, kernel)
+參數:
+cv2.MORPH_CLOSE: 閉運算，用於填補目標區域內的空洞。
+kernel: 卷積核大小。
+用途: 改善分割結果，減少小物件的影響。
+cv2.floodFill(): 執行洪水填充區域分割。
+
+python
+複製程式碼
+h, w = thresholded_image.shape[:2]
+mask = np.zeros((h+2, w+2), np.uint8)
+cv2.floodFill(thresholded_image, mask, (0, 0), 255)
+參數:
+mask: 用於標記填充區域。
+(0, 0): 起始點座標。
+255: 填充的顏色。
+用途: 分割區域，標記與起始點相連的區域。
+4. 特徵提取
+cv2.HoughLinesP(): 霍夫變換，用於偵測直線。
+
+python
+複製程式碼
+lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=100, maxLineGap=10)
+參數:
+1: 距離解析度。
+np.pi/180: 角度解析度。
+100: 投票閾值。
+minLineLength: 最短線段長度。
+maxLineGap: 兩點間的最大間隙。
+用途: 偵測直線（如道路邊界）。
+cv2.findContours(): 偵測影像中的輪廓。
+
+python
+複製程式碼
+contours, _ = cv2.findContours(thresholded_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+參數:
+cv2.RETR_EXTERNAL: 僅提取外部輪廓。
+cv2.CHAIN_APPROX_SIMPLE: 簡化輪廓表示方式。
+用途: 偵測影像中的封閉形狀或區域，如道路標誌或障礙物。
+5. 物件偵測
+YOLO (You Only Look Once) 和 SSD (Single Shot Detector) 等模型：常用於物件偵測的深度學習模型。
+使用這些模型時，通常要透過深度學習框架（如 TensorFlow 或 PyTorch），讀入影像並進行推論：
+
+python
+複製程式碼
+import cv2
+import tensorflow as tf
+
+# 假設已經載入 YOLO 模型
+detections = model.predict(image)
+用途: 偵測道路上的車輛、行人或其他物件。
+6. 結果輸出
+cv2.drawContours(): 在影像上繪製偵測到的輪廓。
+
+python
+複製程式碼
+cv2.drawContours(image, contours, -1, (0, 255, 0), 2)
+參數:
+contours: 偵測到的輪廓列表。
+(0, 255, 0): 輪廓顏色（綠色）。
+2: 線條粗細。
+用途: 可視化輪廓或物件邊界。
+cv2.line(): 在影像上繪製直線（例如霍夫變換偵測的線）。
+
+python
+複製程式碼
+for line in lines:
+    x1, y1, x2, y2 = line[0]
+    cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
+用途: 用來繪製偵測到的直線。
+cv2.imwrite(): 保存處理後的影像。
+
+python
+複製程式碼
+cv2.imwrite('output_image.jpg', image)
+用途: 將處理後的影像寫入到指定路徑。
+cv2.imshow(): 顯示影像（視覺化處理結果）。
+
+python
+複製程式碼
+cv2.imshow('Processed Image', image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+用途: 顯示影像窗口，用於檢視結果。
