@@ -68,7 +68,8 @@ def main():
     # 讀取單張影像
     real_image= cv2.imread('road.jpg', cv2.IMREAD_COLOR)
     image = cv2.imread('road.jpg', cv2.IMREAD_GRAYSCALE)
-    
+    # 計算 LBP
+    lbp_image = lbp_code(image)  # 特徵圖
     # 道路提取
     road_mask = extract_road(image)
     
@@ -78,8 +79,8 @@ def main():
     overlay_image = overlay_on_original(real_image, filled_road_image)
     # 使用 OpenCV 顯示影像
     cv2.imshow('real_image', real_image)
+    cv2.imshow('LBP Feature Map', lbp_image)
     cv2.imshow('Extracted Road Mask', road_mask)
-    
     cv2.imshow('Overlay on Original', overlay_image)
     # 等待按鍵關閉所有視窗
     cv2.waitKey(0)
