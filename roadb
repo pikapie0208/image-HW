@@ -59,7 +59,9 @@ def fill_road_area(original_image, road_mask):
     return result_image
 # 疊加道路區域到原圖
 def overlay_on_original(real_image, filled_image):
-    overlay = cv2.addWeighted(real_image, 0.5, filled_image, 0.5, 0)
+    overlay = real_image.copy()
+    green_mask = (filled_image[:, :, 1] == 255) & (filled_image[:, :, 0] == 0) & (filled_image[:, :, 2] == 0)
+    overlay[green_mask] = cv2.addWeighted(real_image[green_mask], 0.5, filled_image[green_mask], 0.5, 0)
     return overlay
 # 主程式
 def main():
