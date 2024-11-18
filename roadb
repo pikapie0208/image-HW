@@ -72,7 +72,11 @@ def main():
     lbp_image = lbp_code(image)  # 特徵圖
     # 道路提取
     road_mask = extract_road(image)
-    
+    # Sobel 邊緣檢測過程的視覺化
+    sobel_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
+    sobel_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
+    sobel_combined = cv2.magnitude(sobel_x, sobel_y)
+    sobel_combined = np.uint8(cv2.normalize(sobel_combined, None, 0, 255, cv2.NORM_MINMAX))
     # 填滿道路區域
     filled_road_image = fill_road_area(image, road_mask)
     # 疊加結果
@@ -80,6 +84,7 @@ def main():
     # 使用 OpenCV 顯示影像
     cv2.imshow('real_image', real_image)
     cv2.imshow('LBP Feature Map', lbp_image)
+    cv2.imshow('Sobel Edge Detection', sobel_combined)
     cv2.imshow('Extracted Road Mask', road_mask)
     cv2.imshow('Overlay on Original', overlay_image)
     # 等待按鍵關閉所有視窗
