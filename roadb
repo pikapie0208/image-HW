@@ -42,7 +42,7 @@ def extract_road(image):
     return binary_image
 
 # 填滿道路區域
-def fill_road_area(original_image, road_mask):
+def labeling(original_image, road_mask):
     # 找出輪廓
     contours, _ = cv2.findContours(road_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     result_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
@@ -78,7 +78,7 @@ def main():
     sobel_combined = cv2.magnitude(sobel_x, sobel_y)
     sobel_combined = np.uint8(cv2.normalize(sobel_combined, None, 0, 255, cv2.NORM_MINMAX))
     # 填滿道路區域
-    filled_road_image = fill_road_area(image, road_mask)
+    filled_road_image = labeling(image, road_mask)
     # 疊加結果
     overlay_image = overlay_on_original(real_image, filled_road_image)
     # 使用 OpenCV 顯示影像
