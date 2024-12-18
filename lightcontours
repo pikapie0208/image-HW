@@ -1,0 +1,84 @@
+import cv2
+import numpy as np
+
+def cap_vid():
+    """啟動攝像頭並回傳影像捕獲物件"""
+    return cv2.VideoCapture(0)
+
+def gray_frame(frame):
+    """將影像轉為灰階"""
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+def GaussianBlur_frame(gray):
+    """對灰階影像套用高斯模糊"""
+    return cv2.GaussianBlur(gray, (9, 9), 0)
+
+def thresh_frame(blur):
+    """將模糊影像進行二值化處理"""
+    _, threshold = cv2.threshold(blur, 230, 255, cv2.THRESH_BINARY)
+    return threshold
+
+def edge_detect(threshold_frame):
+    """對二值化後的影像進行邊緣檢測"""
+    edged = cv2.Canny(threshold_frame, 50, 150)
+    return edged
+
+def draw_contours(frame, edged):
+    """尋找輪廓並在原始影像上標記範圍"""
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        
+        # 過濾掉不符合條件的輪廓
+        if 500 < area < 5000:  # 根據需求調整閾值
+            # 繪製邊界矩形
+            x, y, w, h = cv2.boundingRect(contour)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)  # 黃色框
+
+            # 繪製最小外接圓
+            (circle_x, circle_y), radius = cv2.minEnclosingCircle(contour)
+            cv2.circle(frame, (int(circle_x), int(circle_y)), int(radius), (0, 255, 0), 2)
+
+            # 標記光源中心點
+            cv2.rectangle(frame, (int(circle_x) - 5, int(circle_y) - 5), 
+                          (int(circle_x) + 5, int(circle_y) + 5), (0, 128, 255), -1)
+
+def main():
+    cap = cap_vid()  # 啟動影像捕獲
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to capture frame from camera. Exiting...")
+            break
+
+        # 顯示原始影像
+        cv2.imshow('Original Frame', frame)
+
+        # 依次調用各個處理步驟
+        gray = gray_frame(frame)
+        blur = GaussianBlur_frame(gray)
+        threshold = thresh_frame(blur)
+        edged = edge_detect(threshold)
+
+        # 標記輪廓並顯示影像
+        draw_contours(frame, edged)
+        
+        # 顯示結果
+        cv2.imshow('Gray Frame', gray)
+        cv2.imshow('Blurred Frame', blur)
+        cv2.imshow('Thresholded Frame', threshold)
+        cv2.imshow('Edged Frame', edged)
+        cv2.imshow('Contours Frame', frame)
+
+        # 按 'q' 離開迴圈
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # 釋放資源
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
