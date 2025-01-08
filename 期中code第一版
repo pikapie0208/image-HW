@@ -1,0 +1,77 @@
+import cv2
+import numpy as np
+
+# 計算 Sobel 邊緣檢測
+# Input: 灰度圖像 (image)
+# Output: Sobel 邊緣檢測圖像 (sobel_combined)
+def compute_sobel(image):
+    sobel_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
+    sobel_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
+    sobel_combined = cv2.magnitude(sobel_x, sobel_y)
+    sobel_combined = np.uint8(cv2.normalize(sobel_combined, None, 0, 255, cv2.NORM_MINMAX))
+    return sobel_combined
+
+# 自適應二值化
+# Input: 灰度圖像 (image)
+# Output: 二值化圖像 (binary_image)
+def adaptive_threshold(image):
+    return cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                 cv2.THRESH_BINARY, blockSize=15, C=5)
+
+# 形態學操作 - 擴展遮罩
+# Input: 二值化圖像 (binary_image)
+# Output: 處理後的圖像 (morphed_image)
+def morphological_operations(binary_image):
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    morphed_image = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel)
+    morphed_image = cv2.morphologyEx(morphed_image, cv2.MORPH_OPEN, kernel)
+    return morphed_image
+
+# 道路提取流程
+# Input: 灰度圖像 (image)
+# Output: 道路遮罩 (road_mask)
+def extract_road(image):
+    sobel_combined = compute_sobel(image)
+    binary_image = adaptive_threshold(sobel_combined)
+    road_mask = morphological_operations(binary_image)
+    return road_mask
+
+# 填滿道路區域
+# Input: 原始圖像 (original_image), 道路遮罩 (road_mask)
+# Output: 填滿道路區域後的圖像 (result_image)
+def fill_road_area(original_image, road_mask):
+    contours, _ = cv2.findContours(road_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    result_image = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
+    
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area > 1000:  # 面積過小的輪廓不處理
+            mask = np.zeros_like(road_mask)
+            cv2.drawContours(mask, [contour], -1, 255, thickness=cv2.FILLED)
+            
+            # 僅填充灰度值低於特定門檻的區域
+            result_image[np.logical_and(mask == 255, original_image < 80)] = (0, 255, 0)
+    
+    return result_image
+
+# 主程式
+def main():
+    # 讀取單張影像
+    image = cv2.imread('road.jpg', cv2.IMREAD_GRAYSCALE)
+    
+    # 道路提取
+    road_mask = extract_road(image)
+    
+    # 填滿道路區域
+    filled_road_image = fill_road_area(image, road_mask)
+    
+    # 使用 OpenCV 顯示影像
+    cv2.imshow('Extracted Road Mask', road_mask)
+    cv2.imshow('Filled Road Area', filled_road_image)
+    
+    # 等待按鍵關閉所有視窗
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
