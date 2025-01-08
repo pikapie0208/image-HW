@@ -1,0 +1,92 @@
+import cv2
+import numpy as np
+
+# Function for LBP calculation
+def lbp(image, mask):
+    lbp_image = np.zeros_like(image, dtype=np.uint8)
+    for i in range(1, image.shape[0] - 1):
+        for j in range(1, image.shape[1] - 1):
+            if mask[i, j] > 0:  # Only perform LBP in masked areas
+                center = image[i, j]
+                binary_string = ''
+                binary_string += '1' if image[i-1, j-1] > center else '0'
+                binary_string += '1' if image[i-1, j] > center else '0'
+                binary_string += '1' if image[i-1, j+1] > center else '0'
+                binary_string += '1' if image[i, j+1] > center else '0'
+                binary_string += '1' if image[i+1, j+1] > center else '0'
+                binary_string += '1' if image[i+1, j] > center else '0'
+                binary_string += '1' if image[i+1, j-1] > center else '0'
+                binary_string += '1' if image[i, j-1] > center else '0'
+                lbp_image[i, j] = int(binary_string, 2)
+    return lbp_image
+
+# Function to calculate and plot histogram
+def histogram(lbp_image):
+    hist, _ = np.histogram(lbp_image.ravel(), bins=256, range=(0, 256))
+    
+    # Create a blank image for plotting histogram
+    hist_img = np.zeros((300, 256, 3), dtype=np.uint8)
+    hist_max = np.max(hist[1:])  # Exclude bin 0
+    
+    for i in range(1, 256):
+        height = int((hist[i] / hist_max) * 300)
+        cv2.line(hist_img, (i, 300), (i, 300 - height), (255, 255, 255), 1)
+
+    cv2.imshow("LBP Histogram", hist_img)
+    return hist
+
+# Function to convert image to grayscale
+def gray_image(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+# Function to create dark mask
+def create_dark_mask(gray_image, threshold=70):
+    return cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY_INV)[1]
+
+# Sub-function for road region extraction
+def labeling(image, gray, dark_mask, lbp_image, lbp_hist):
+    road_lbp_values = np.where(lbp_hist > np.percentile(lbp_hist, 95))[0]
+    road_mask = np.zeros_like(gray, dtype=np.uint8)
+
+    for i in range(1, gray.shape[0] - 1):
+        for j in range(1, gray.shape[1] - 1):
+            if lbp_image[i, j] in road_lbp_values and dark_mask[i, j] > 0:
+                road_mask[i, j] = 255
+
+    # Fill the road region with color
+    colored_road = image.copy()
+    colored_road[road_mask == 255] = [0, 255, 0]  # Green color for road area
+
+    return road_mask, colored_road
+
+# Main function
+def main(image_path):
+    image = cv2.imread(image_path)
+    
+    # Convert to grayscale
+    gray = gray_image(image)
+
+    # Create dark mask
+    dark_mask = create_dark_mask(gray)
+
+    # Get LBP image and histogram
+    lbp_image = lbp(gray, dark_mask)
+    lbp_hist = histogram(lbp_image)
+
+    # Extract and color road regions
+    road_mask, colored_road = labeling(image, gray, dark_mask, lbp_image, lbp_hist)
+
+    # Display results
+    print("LBP Histogram:", lbp_hist)
+    cv2.imshow("Original Image", image)
+    cv2.imshow("Gray Image", gray)
+    cv2.imshow("Dark Mask", dark_mask)
+    cv2.imshow("LBP Image", lbp_image)
+    cv2.imshow("Road Mask", road_mask)
+    cv2.imshow("Colored Road Region", colored_road)
+
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+# Run the main function
+main('road.jpg')
