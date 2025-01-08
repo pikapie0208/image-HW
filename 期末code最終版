@@ -1,0 +1,128 @@
+import cv2
+import numpy as np
+import time
+
+def cap_vid():
+    """啟動攝像頭並回傳影像捕獲物件"""
+    return cv2.VideoCapture(0)
+
+def gray_frame(frame):
+    """將影像轉為灰階"""
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+def GaussianBlur_frame(gray):
+    """對灰階影像套用高斯模糊"""
+    return cv2.GaussianBlur(gray, (9, 9), 0)
+
+def thresh_frame(blur):
+    """將模糊影像進行二值化處理"""
+    _, threshold = cv2.threshold(blur, 230, 255, cv2.THRESH_BINARY)
+    return threshold
+
+def edge_detect(threshold_frame):
+    """對二值化後的影像進行邊緣檢測"""
+    return cv2.Canny(threshold_frame, 50, 150)
+
+def detect_colors(frame):
+    """從影像中檢測火焰顏色並返回遮罩"""
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)  # 將影像轉換為 HSV 顏色空間
+    fire_lower = np.array([15, 100, 100])  # 火焰顏色下限
+    fire_upper = np.array([40, 255, 255])  # 火焰顏色上限
+    fire_mask = cv2.inRange(hsv, fire_lower, fire_upper)  # 建立遮罩
+    return fire_mask
+
+def detect_light_sources(gray, fire_mask, edged, frame, prev_gray, lk_params, prev_points, fire_detected, fire_start_time):
+    """檢測光源，結合邊緣檢測進行分類"""
+    
+    # 使用邊緣檢測結果找出輪廓
+    contours, _ = cv2.findContours(edged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    p0 = cv2.goodFeaturesToTrack(prev_gray, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
+
+    if p0 is not None and prev_points is not None:
+        p1, st, err = cv2.calcOpticalFlowPyrLK(prev_gray, gray, prev_points, None, **lk_params)
+        good_new = p1[st == 1]
+        good_old = prev_points[st == 1]
+        movement = np.linalg.norm(good_new - good_old, axis=1)
+        movement_std = np.std(movement) if len(movement) > 0 else 0
+    else:
+        movement = np.array([0])
+        movement_std = 0
+
+    fire_count = 0
+    total_count = 0
+
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        perimeter = cv2.arcLength(contour, True)
+        if area > 0:
+            compactness = (perimeter**2) / area  # 輪廓緊湊度
+        
+        if 500 < area < 5000:
+            x, y, w, h = cv2.boundingRect(contour)
+            (circle_x, circle_y), radius = cv2.minEnclosingCircle(contour)
+
+            # 整合邊緣與運動特徵進行判斷
+            edge_density = cv2.countNonZero(edged[y:y+h, x:x+w]) / (w * h)  # 邊緣密度
+            if cv2.countNonZero(fire_mask[y:y+h, x:x+w]) > 0:
+                if movement_std > 2 and compactness > 15 and edge_density > 0.05:
+                    label = "Fire Source"
+                    fire_count += 1
+                else:
+                    label = "Light Source"
+            else:
+                label = "Light Source"
+
+            total_count += 1
+
+            # 在影像中標註
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 2)
+            cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            cv2.circle(frame, (int(circle_x), int(circle_y)), int(radius), (0, 255, 0), 2)
+
+    # 檢查火的偵測次數是否超過50%
+    if total_count > 0 and fire_count / total_count > 0.5:
+        fire_detected = True
+        fire_start_time = time.time()
+
+    # 如果火的偵測次數超過50%，接下來0.5秒內都標示成火
+    if fire_detected and time.time() - fire_start_time < 0.5:
+        for contour in contours:
+            x, y, w, h = cv2.boundingRect(contour)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            cv2.putText(frame, "Fire Source", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
+    return frame, gray, p0, fire_detected, fire_start_time
+
+def main():
+    cap = cap_vid()
+    ret, frame = cap.read()
+    prev_gray = gray_frame(frame)
+    prev_points = None
+    lk_params = dict(winSize=(15, 15), maxLevel=2,
+                     criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
+    fire_detected = False
+    fire_start_time = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to capture frame from camera. Exiting...")
+            break
+
+        fire_mask = detect_colors(frame)
+        gray = gray_frame(frame)
+        blur = GaussianBlur_frame(gray)
+        threshold = thresh_frame(blur)
+        edged = edge_detect(threshold)
+        result_frame, prev_gray, prev_points, fire_detected, fire_start_time = detect_light_sources(
+         gray, fire_mask, edged, frame, prev_gray, lk_params, prev_points, fire_detected, fire_start_time)
+        cv2.imshow('Light Source Detection', result_frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
